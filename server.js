@@ -50,13 +50,41 @@ app.use(express.urlencoded({ extended: true }));
 // Mount Authentication & Authorization API Router
 app.use('/api/auth', authRouter);
 
+// Root & Healthcheck endpoints for Cloud Deployment (Vercel, Netlify, Render)
+app.get('/', (req, res) => {
+  res.json({
+    status: 'online',
+    service: 'FleetPro Live GPS Tracker Backend API',
+    version: '4.0.0',
+    dbConnected: isDbConnected,
+    timestamp: new Date().toISOString()
+  });
+});
 
-// Server & WebSocket Setup
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'healthy',
+    uptime: Math.round(process.uptime()),
+    dbConnected: isDbConnected,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Server & WebSocket Setup (Safe initialization for serverless & dedicated servers)
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+let wss = null;
+
+if (!process.env.VERCEL && !process.env.NETLIFY) {
+  try {
+    wss = new WebSocketServer({ server });
+  } catch (err) {
+    console.warn('[WebSocket Init Warning]:', err.message);
+  }
+}
 
 // Helper to broadcast to all connected WebSocket clients
 function broadcast(message) {
+  if (!wss || !wss.clients) return;
   const data = JSON.stringify(message);
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
@@ -1366,45 +1394,53 @@ app.post('/api/simulate/toggle', (req, res) => {
   res.json({ active: simulationActive });
 });
 
-// WebSocket Connection Handler
-wss.on('connection', (ws) => {
-  console.log('[WebSocket] Dashboard Client connected');
-  // Send current state immediately upon connection
-  ws.send(JSON.stringify({
-    type: 'INIT_STATE',
-    vehicles: Object.values(vehicles),
-    alerts: alertsLog.slice(0, 20),
-    simulationActive,
-    tolls: TOLL_PLAZAS,
-    hubs: SUPPLY_HUBS
-  }));
+// WebSocket Connection Handler (Active on persistent server hosts)
+if (wss) {
+  wss.on('connection', (ws) => {
+    console.log('[WebSocket] Dashboard Client connected');
+    // Send current state immediately upon connection
+    ws.send(JSON.stringify({
+      type: 'INIT_STATE',
+      vehicles: Object.values(vehicles),
+      alerts: alertsLog.slice(0, 20),
+      simulationActive,
+      tolls: TOLL_PLAZAS,
+      hubs: SUPPLY_HUBS
+    }));
 
-  ws.on('message', (message) => {
-    try {
-      const data = JSON.parse(message);
-      if (data.type === 'PING') {
-        ws.send(JSON.stringify({ type: 'PONG' }));
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message);
+        if (data.type === 'PING') {
+          ws.send(JSON.stringify({ type: 'PONG' }));
+        }
+      } catch (e) {
+        // ignore
       }
-    } catch (e) {
-      // ignore
-    }
-  });
+    });
 
-  ws.on('close', () => {
-    // client disconnected
+    ws.on('close', () => {
+      // client disconnected
+    });
   });
-});
+}
 
-server.listen(PORT, () => {
-  console.log(`=======================================================`);
-  console.log(`🚛 SUPPLY FLEET TRACKER - ENTERPRISE BACKEND ENGINE 🚀`);
-  console.log(`📡 HTTP & OwnTracks Ingestion Port: http://localhost:${PORT}`);
-  console.log(`📡 OwnTracks Webhook Endpoint: POST http://localhost:${PORT}/api/owntracks`);
-  console.log(`⚡ WebSocket Server Active on ws://localhost:${PORT}`);
-  console.log(`=======================================================`);
-  console.log(`Available Local Network Addresses for OwnTracks Mobile:`);
-  getLocalIpAddresses().forEach((ip) => {
-    console.log(`  📱 Mobile Endpoint: http://${ip.address}:${PORT}/api/owntracks`);
+// Start HTTP Server when running standalone (non-serverless)
+if (!process.env.VERCEL && !process.env.NETLIFY) {
+  server.listen(PORT, () => {
+    console.log(`=======================================================`);
+    console.log(`🚛 SUPPLY FLEET TRACKER - ENTERPRISE BACKEND ENGINE 🚀`);
+    console.log(`📡 HTTP & OwnTracks Ingestion Port: http://localhost:${PORT}`);
+    console.log(`📡 OwnTracks Webhook Endpoint: POST http://localhost:${PORT}/api/owntracks`);
+    console.log(`⚡ WebSocket Server Active on ws://localhost:${PORT}`);
+    console.log(`=======================================================`);
+    console.log(`Available Local Network Addresses for OwnTracks Mobile:`);
+    getLocalIpAddresses().forEach((ip) => {
+      console.log(`  📱 Mobile Endpoint: http://${ip.address}:${PORT}/api/owntracks`);
+    });
+    console.log(`=======================================================`);
   });
-  console.log(`=======================================================`);
-});
+}
+
+// Export default app for Vercel Serverless Functions
+export default app;
