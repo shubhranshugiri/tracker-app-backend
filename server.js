@@ -1328,64 +1328,66 @@ const simPathT2 = [
   { lat: 19.2967, lon: 73.0631, heading: 30, speed: 15 }  // Bhiwandi Hub
 ];
 
-setInterval(() => {
-  if (!simulationActive) return;
+if (!process.env.VERCEL && !process.env.NETLIFY) {
+  setInterval(() => {
+    if (!simulationActive) return;
 
-  simStepIndex++;
-  const idx1 = simStepIndex % simPathT1.length;
-  const pt1 = simPathT1[idx1];
+    simStepIndex++;
+    const idx1 = simStepIndex % simPathT1.length;
+    const pt1 = simPathT1[idx1];
 
-  // Update T1
-  const t1 = vehicles['T1'];
-  if (t1) {
-    t1.lat = pt1.lat + (Math.random() - 0.5) * 0.003;
-    t1.lon = pt1.lon + (Math.random() - 0.5) * 0.003;
-    t1.heading = pt1.heading;
-    t1.speed = Math.max(0, pt1.speed + Math.round((Math.random() - 0.5) * 8));
-    t1.status = t1.speed > 5 ? 'moving' : 'idling';
-    t1.lastUpdated = Date.now();
-    t1.history.push({
-      lat: t1.lat,
-      lon: t1.lon,
-      speed: t1.speed,
-      altitude: 150,
-      heading: t1.heading,
-      timestamp: Date.now(),
-      battery: t1.battery
-    });
-    if (t1.history.length > 500) t1.history.shift();
-
-    checkTollAndGeofences(t1);
-    broadcast({ type: 'SIMULATION_UPDATE', vehicle: t1 });
-  }
-
-  // Update T2 every 2nd step
-  if (simStepIndex % 2 === 0) {
-    const idx2 = Math.floor(simStepIndex / 2) % simPathT2.length;
-    const pt2 = simPathT2[idx2];
-    const t2 = vehicles['T2'];
-    if (t2) {
-      t2.lat = pt2.lat + (Math.random() - 0.5) * 0.002;
-      t2.lon = pt2.lon + (Math.random() - 0.5) * 0.002;
-      t2.heading = pt2.heading;
-      t2.speed = Math.max(0, pt2.speed + Math.round((Math.random() - 0.5) * 6));
-      t2.status = t2.speed > 5 ? 'moving' : 'idling';
-      t2.lastUpdated = Date.now();
-      t2.history.push({
-        lat: t2.lat,
-        lon: t2.lon,
-        speed: t2.speed,
-        altitude: 40,
-        heading: t2.heading,
+    // Update T1
+    const t1 = vehicles['T1'];
+    if (t1) {
+      t1.lat = pt1.lat + (Math.random() - 0.5) * 0.003;
+      t1.lon = pt1.lon + (Math.random() - 0.5) * 0.003;
+      t1.heading = pt1.heading;
+      t1.speed = Math.max(0, pt1.speed + Math.round((Math.random() - 0.5) * 8));
+      t1.status = t1.speed > 5 ? 'moving' : 'idling';
+      t1.lastUpdated = Date.now();
+      t1.history.push({
+        lat: t1.lat,
+        lon: t1.lon,
+        speed: t1.speed,
+        altitude: 150,
+        heading: t1.heading,
         timestamp: Date.now(),
-        battery: t2.battery
+        battery: t1.battery
       });
-      if (t2.history.length > 500) t2.history.shift();
-      checkTollAndGeofences(t2);
-      broadcast({ type: 'SIMULATION_UPDATE', vehicle: t2 });
+      if (t1.history.length > 500) t1.history.shift();
+
+      checkTollAndGeofences(t1);
+      broadcast({ type: 'SIMULATION_UPDATE', vehicle: t1 });
     }
-  }
-}, 4000);
+
+    // Update T2 every 2nd step
+    if (simStepIndex % 2 === 0) {
+      const idx2 = Math.floor(simStepIndex / 2) % simPathT2.length;
+      const pt2 = simPathT2[idx2];
+      const t2 = vehicles['T2'];
+      if (t2) {
+        t2.lat = pt2.lat + (Math.random() - 0.5) * 0.002;
+        t2.lon = pt2.lon + (Math.random() - 0.5) * 0.002;
+        t2.heading = pt2.heading;
+        t2.speed = Math.max(0, pt2.speed + Math.round((Math.random() - 0.5) * 6));
+        t2.status = t2.speed > 5 ? 'moving' : 'idling';
+        t2.lastUpdated = Date.now();
+        t2.history.push({
+          lat: t2.lat,
+          lon: t2.lon,
+          speed: t2.speed,
+          altitude: 40,
+          heading: t2.heading,
+          timestamp: Date.now(),
+          battery: t2.battery
+        });
+        if (t2.history.length > 500) t2.history.shift();
+        checkTollAndGeofences(t2);
+        broadcast({ type: 'SIMULATION_UPDATE', vehicle: t2 });
+      }
+    }
+  }, 4000);
+}
 
 // Simulation Toggle API
 app.post('/api/simulate/toggle', (req, res) => {
