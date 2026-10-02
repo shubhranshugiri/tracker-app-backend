@@ -1,0 +1,14 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Node modules
+node_modules/
+
+# Editor files
+.vscode
+.idea
+.DS_Store
+.env
+package-lock.json
